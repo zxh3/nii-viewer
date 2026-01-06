@@ -47,6 +47,7 @@ const NiiViewer = () => {
   const [imageUrl, setImageUrl] = useState(
     "https://s3.amazonaws.com/openneuro.org/ds007122/sub-01/ses-01/anat/sub-01_ses-01_T1w.nii.gz?versionId=pw4fvQg5wq.9H4uWaoVAzRVBjznhIbXK&AWSAccessKeyId=AKIARTA7OOV5WQ3DGSOB&Signature=7fsZV4YFGC60PxSh4YDrTVyTUjI%3D&Expires=1768221668"
   );
+  const [frac, setFrac] = useState<Float32Array>(new Float32Array());
   const [intensity, setIntensity] = useState<string>("");
   const [sliceType, setSliceType] = useState<SLICE_TYPE>(
     SLICE_TYPE.MULTIPLANAR
@@ -63,9 +64,13 @@ const NiiViewer = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nvRef = useRef<Niivue | null>(null);
 
-  const handleIntensityChange = useCallback((data: { string: string }) => {
-    setIntensity(data.string);
-  }, []);
+  const handleIntensityChange = useCallback(
+    (data: { string: string; frac: Float32Array }) => {
+      setFrac(data.frac);
+      setIntensity(data.string);
+    },
+    []
+  );
 
   const loadVolumes = useCallback(async () => {
     if (nvRef.current) {
@@ -383,6 +388,11 @@ const NiiViewer = () => {
       {!!intensity && (
         <div className="p-2 bg-background text-sm text-muted-foreground">
           Intensity: {intensity || "\u00A0"}
+        </div>
+      )}
+      {!!frac.length && (
+        <div className="p-2 bg-background text-sm text-muted-foreground">
+          Fractions: {frac.join(", ") || "\u00A0"}
         </div>
       )}
     </div>
