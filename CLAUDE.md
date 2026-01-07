@@ -1,0 +1,1 @@
+This is a medical imagery viewer app that uses the library niivue (https://niivue.com/).

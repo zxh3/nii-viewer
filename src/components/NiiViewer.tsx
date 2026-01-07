@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { Niivue, SLICE_TYPE, SHOW_RENDER, DRAG_MODE } from "@niivue/niivue";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,43 +10,24 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Check } from "lucide-react";
-
-const sliceTypeOptions = [
-  {
-    label: "Axial",
-    value: SLICE_TYPE.AXIAL,
-  },
-  {
-    label: "Coronal",
-    value: SLICE_TYPE.CORONAL,
-  },
-  {
-    label: "Sagittal",
-    value: SLICE_TYPE.SAGITTAL,
-  },
-  {
-    label: "Render",
-    value: SLICE_TYPE.RENDER,
-  },
-  {
-    label: "Multiplanar (A+C+S)",
-    value: SLICE_TYPE.MULTIPLANAR,
-  },
-];
+import { cn } from "@/lib/utils";
+import { Kbd } from "@/components/ui/kbd";
+import ScreenshotSidebar from "./ScreenshotSidebar";
+import type { Screenshot } from "@/types/screenshot";
+import {
+  sliceTypeOptions,
+  dragModes,
+  getSliceTypeLabel,
+  getDragModeLabel,
+} from "@/utils/labels";
 
 const colormaps = ["gray", "plasma", "viridis", "inferno"];
 
-const dragModes = [
-  { label: "Contrast", value: DRAG_MODE.contrast },
-  { label: "Measurement", value: DRAG_MODE.measurement },
-  { label: "Pan", value: DRAG_MODE.pan },
-  { label: "None", value: DRAG_MODE.none },
-];
-
 const NiiViewer = () => {
-  const [imageUrl, setImageUrl] = useState(
+  const [sourceUrl, setSourceUrl] = useState(
     "https://s3.amazonaws.com/openneuro.org/ds007122/sub-01/ses-01/anat/sub-01_ses-01_T1w.nii.gz?versionId=pw4fvQg5wq.9H4uWaoVAzRVBjznhIbXK&AWSAccessKeyId=AKIARTA7OOV5WQ3DGSOB&Signature=7fsZV4YFGC60PxSh4YDrTVyTUjI%3D&Expires=1768221668"
   );
+  const [vox, setVox] = useState<Float32Array>(new Float32Array());
   const [frac, setFrac] = useState<Float32Array>(new Float32Array());
   const [intensity, setIntensity] = useState<string>("");
   const [sliceType, setSliceType] = useState<SLICE_TYPE>(
@@ -60,19 +41,56 @@ const NiiViewer = () => {
   const [isDarkBackground, setIsDarkBackground] = useState(true);
   const [dragMode, setDragMode] = useState<DRAG_MODE>(DRAG_MODE.contrast);
   const [showMultiplanarRender, setShowMultiplanarRender] = useState(true);
+  const [screenshots, setScreenshots] = useState<Screenshot[]>([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [canScreenshot, setCanScreenshot] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const nvRef = useRef<Niivue | null>(null);
 
-  const handleIntensityChange = useCallback(
-    (data: { string: string; frac: Float32Array }) => {
+  const submitScreenshots = useCallback(() => {
+    if (!window.parent || screenshots.length === 0) {
+      console.error("Cannot submit: no parent or no screenshots");
+      return;
+    }
+
+    window.parent.postMessage(
+      {
+        type: "submission",
+        payload: {
+          items: screenshots.map((screenshot) => ({
+            content: {
+              type: "dataUrl",
+              data: screenshot.dataUrl,
+            },
+            metadata: {
+              ...screenshot.metadata,
+              sliceType: getSliceTypeLabel(screenshot.metadata.sliceType),
+              dragMode: getDragModeLabel(screenshot.metadata.dragMode),
+              frac: Array.from(screenshot.metadata.frac),
+              vox: Array.from(screenshot.metadata.vox),
+            },
+          })),
+        },
+      },
+      "http://localhost:1234"
+    );
+
+    console.log(`Submitted ${screenshots.length} screenshots`);
+  }, [screenshots]);
+
+  const handleLocationChange = useCallback(
+    (data: { string: string; frac: Float32Array; vox: Float32Array }) => {
+      setVox(data.vox);
       setFrac(data.frac);
       setIntensity(data.string);
+      setCanScreenshot(true);
     },
-    []
+    [setVox, setFrac, setIntensity]
   );
 
   const loadVolumes = useCallback(async () => {
+    setCanScreenshot(false);
     if (nvRef.current) {
       nvRef.current.cleanup();
     }
@@ -80,7 +98,7 @@ const NiiViewer = () => {
       dragAndDropEnabled: true,
       show3Dcrosshair: show3Dcrosshair,
       // @ts-expect-error - onLocationChange is not typed
-      onLocationChange: handleIntensityChange,
+      onLocationChange: handleLocationChange,
     });
     nv.opts.isColorbar = isColorbar;
     nv.setRadiologicalConvention(isRadiological);
@@ -111,13 +129,13 @@ const NiiViewer = () => {
 
     const volumeList = [
       {
-        url: imageUrl,
+        url: sourceUrl,
       },
     ];
     await nv.loadVolumes(volumeList);
     nv.setSliceType(sliceType);
   }, [
-    imageUrl,
+    sourceUrl,
     isColorbar,
     isRadiological,
     show3Dcrosshair,
@@ -126,14 +144,67 @@ const NiiViewer = () => {
     dragMode,
     sliceType,
     showMultiplanarRender,
-    handleIntensityChange,
+    handleLocationChange,
   ]);
 
-  const onSaveImage = useCallback(() => {
-    if (nvRef.current) {
-      nvRef.current.saveScene("ScreenShot.png");
-    }
+  const captureScreenshot = useCallback(() => {
+    if (!nvRef.current || !canvasRef.current || !canScreenshot) return;
+
+    // Force render to ensure canvas is up-to-date
+    nvRef.current.drawScene();
+
+    // Capture canvas as base64 PNG
+    const dataUrl = canvasRef.current.toDataURL("image/png");
+
+    const newScreenshot: Screenshot = {
+      id: `screenshot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      dataUrl,
+      metadata: {
+        timestamp: Date.now(),
+        sliceType,
+        colormap,
+        isColorbar,
+        isRadiological,
+        show3Dcrosshair,
+        showClipPlane,
+        isDarkBackground,
+        dragMode,
+        showMultiplanarRender,
+        intensity,
+        frac: new Float32Array(frac), // Clone array
+        vox: new Float32Array(vox),
+        sourceUrl,
+      },
+    };
+
+    setScreenshots((prev) => [...prev, newScreenshot]);
+  }, [
+    canScreenshot,
+    sliceType,
+    colormap,
+    isColorbar,
+    isRadiological,
+    show3Dcrosshair,
+    showClipPlane,
+    isDarkBackground,
+    dragMode,
+    showMultiplanarRender,
+    intensity,
+    frac,
+    vox,
+    sourceUrl,
+  ]);
+
+  const deleteScreenshot = useCallback((id: string) => {
+    setScreenshots((prev) => prev.filter((s) => s.id !== id));
   }, []);
+
+  const clearAllScreenshots = useCallback(() => {
+    if (screenshots.length === 0) return;
+    if (window.confirm(`Delete all ${screenshots.length} screenshots?`)) {
+      setScreenshots([]);
+    }
+  }, [screenshots.length]);
 
   const onShowHeader = useCallback(() => {
     if (nvRef.current && nvRef.current.volumes.length > 0) {
@@ -227,8 +298,52 @@ const NiiViewer = () => {
     }
   }, []);
 
+  // Keyboard shortcuts for view switching and screenshot
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in input fields
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      // Number keys 1-5 for view switching
+      switch (event.key) {
+        case "1":
+          handleSliceTypeChange(SLICE_TYPE.AXIAL);
+          break;
+        case "2":
+          handleSliceTypeChange(SLICE_TYPE.CORONAL);
+          break;
+        case "3":
+          handleSliceTypeChange(SLICE_TYPE.SAGITTAL);
+          break;
+        case "4":
+          handleSliceTypeChange(SLICE_TYPE.RENDER);
+          break;
+        case "5":
+          handleSliceTypeChange(SLICE_TYPE.MULTIPLANAR, true);
+          break;
+        case "s":
+        case "S":
+          // Take screenshot with 'S' key
+          captureScreenshot();
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleSliceTypeChange, captureScreenshot]);
+
   return (
-    <div className="flex flex-col h-screen]">
+    <div className="flex flex-col h-screen">
       {/* Header with Dropdown Menus */}
       <div className="flex gap-2 p-2 bg-background">
         {/* File Menu */}
@@ -239,8 +354,11 @@ const NiiViewer = () => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem onClick={onSaveImage}>
-              Screen Shot
+            <DropdownMenuItem onClick={captureScreenshot}>
+              <span className="flex items-center justify-between w-full gap-4">
+                <span>Screen Shot</span>
+                <Kbd>S</Kbd>
+              </span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onShowHeader}>
               Show Header
@@ -276,9 +394,14 @@ const NiiViewer = () => {
                   )
                 }
               >
-                <span className="flex items-center gap-2">
-                  {sliceType === option.value && <Check className="h-4 w-4" />}
-                  {option.label}
+                <span className="flex items-center justify-between w-full gap-4">
+                  <span className="flex items-center gap-2">
+                    {sliceType === option.value && (
+                      <Check className="h-4 w-4" />
+                    )}
+                    {option.label}
+                  </span>
+                  <Kbd>{option.shortcut}</Kbd>
                 </span>
               </DropdownMenuItem>
             ))}
@@ -368,33 +491,47 @@ const NiiViewer = () => {
           <Input
             className="flex-1"
             type="text"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
             placeholder="Enter nii file URL"
           />
-          <Button size="sm" onClick={loadVolumes} disabled={!imageUrl}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={loadVolumes}
+            disabled={!sourceUrl}
+          >
             Load
           </Button>
         </div>
       </div>
 
-      {/* Canvas */}
-      <main className="flex-1 p-3">
-        <div className="p-3 w-full h-[80vh] border border-neutral-600 rounded-md">
-          <canvas ref={canvasRef} />
-        </div>
-      </main>
+      {/* Main content area with sidebar */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Canvas area */}
+        <main className="flex-1 p-3">
+          <div className="w-full h-full p-4 border border-neutral-600 rounded-md">
+            <canvas ref={canvasRef} />
+          </div>
+        </main>
 
-      {!!intensity && (
-        <div className="p-2 bg-background text-sm text-muted-foreground">
-          Intensity: {intensity || "\u00A0"}
-        </div>
-      )}
-      {!!frac.length && (
-        <div className="p-2 bg-background text-sm text-muted-foreground">
-          Fractions: {frac.join(", ") || "\u00A0"}
-        </div>
-      )}
+        {/* Screenshot sidebar - always rendered to prevent layout shift */}
+        <aside
+          className={cn(
+            "transition-all duration-300 border-l bg-background flex-shrink-0",
+            isSidebarOpen ? "w-80" : "w-12"
+          )}
+        >
+          <ScreenshotSidebar
+            screenshots={screenshots}
+            isOpen={isSidebarOpen}
+            onToggle={() => setIsSidebarOpen((prev) => !prev)}
+            onDelete={deleteScreenshot}
+            onClear={clearAllScreenshots}
+            onSubmit={submitScreenshots}
+          />
+        </aside>
+      </div>
     </div>
   );
 };
