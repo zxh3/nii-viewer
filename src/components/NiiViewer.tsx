@@ -25,8 +25,8 @@ const colormaps = ["gray", "plasma", "viridis", "inferno"];
 
 const TARGET_ORIGINS = [
   // "http://localhost:1234",
-  // "https://canary.dashboard.scale.com",
-  // "https://dashboard.scale.com",
+  "https://canary.dashboard.scale.com",
+  "https://dashboard.scale.com",
   "https://www.remotasks.com",
   "https://canary.remotasks.com",
   "https://app.outlier.ai",
@@ -69,6 +69,7 @@ const NiiViewer = () => {
             items: screenshots.map((screenshot) => ({
               content: {
                 type: "dataUrl",
+                id: screenshot.id,
                 data: screenshot.dataUrl,
               },
               metadata: {
@@ -163,11 +164,12 @@ const NiiViewer = () => {
     // Capture canvas as base64 PNG
     const dataUrl = canvasRef.current.toDataURL("image/png");
 
+    const timestamp = Date.now();
     const newScreenshot: Screenshot = {
-      id: `screenshot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `screenshot-${timestamp}-${Math.random().toString(36).slice(2, 9)}`,
       dataUrl,
       metadata: {
-        timestamp: Date.now(),
+        timestamp,
         sliceType,
         colormap,
         isColorbar,
@@ -178,7 +180,7 @@ const NiiViewer = () => {
         dragMode,
         showMultiplanarRender,
         intensity,
-        frac: new Float32Array(frac), // Clone array
+        frac: new Float32Array(frac),
         vox: new Float32Array(vox),
         sourceUrl,
       },
@@ -303,6 +305,33 @@ const NiiViewer = () => {
     if (nvRef.current) {
       nvRef.current.opts.dragMode = mode;
     }
+  }, []);
+
+  // Send ready message to parent and listen for initial state
+  useEffect(() => {
+    // Send ready message to parent
+    for (const targetOrigin of TARGET_ORIGINS) {
+      window.parent.postMessage(
+        {
+          type: "IFRAME_READY",
+          payload: {},
+        },
+        targetOrigin
+      );
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (!TARGET_ORIGINS.includes(event.origin)) {
+        return;
+      }
+
+      if (event.data.type === "INIT_STATE") {
+        console.log("INIT_STATE", event.data.payload);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
   }, []);
 
   // Keyboard shortcuts for view switching and screenshot
