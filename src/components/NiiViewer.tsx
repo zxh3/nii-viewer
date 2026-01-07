@@ -33,9 +33,7 @@ const TARGET_ORIGINS = [
 ];
 
 const NiiViewer = () => {
-  const [sourceUrl, setSourceUrl] = useState(
-    "https://niivue.github.io/niivue-demo-images/mni152.nii.gz"
-  );
+  const [sourceUrl, setSourceUrl] = useState("");
   const [vox, setVox] = useState<Float32Array>(new Float32Array());
   const [frac, setFrac] = useState<Float32Array>(new Float32Array());
   const [intensity, setIntensity] = useState<string>("");
