@@ -25,7 +25,7 @@ const colormaps = ["gray", "plasma", "viridis", "inferno"];
 
 const NiiViewer = () => {
   const [sourceUrl, setSourceUrl] = useState(
-    "https://s3.amazonaws.com/openneuro.org/ds007122/sub-01/ses-01/anat/sub-01_ses-01_T1w.nii.gz?versionId=pw4fvQg5wq.9H4uWaoVAzRVBjznhIbXK&AWSAccessKeyId=AKIARTA7OOV5WQ3DGSOB&Signature=7fsZV4YFGC60PxSh4YDrTVyTUjI%3D&Expires=1768221668"
+    "https://niivue.github.io/niivue-demo-images/mni152.nii.gz"
   );
   const [vox, setVox] = useState<Float32Array>(new Float32Array());
   const [frac, setFrac] = useState<Float32Array>(new Float32Array());
