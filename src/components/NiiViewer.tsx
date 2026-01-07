@@ -64,7 +64,7 @@ const NiiViewer = () => {
     for (const targetOrigin of TARGET_ORIGINS) {
       window.parent.postMessage(
         {
-          type: "submission",
+          type: "SUBMISSION",
           payload: {
             items: screenshots.map((screenshot) => ({
               content: {
@@ -165,6 +165,7 @@ const NiiViewer = () => {
     const dataUrl = canvasRef.current.toDataURL("image/png");
 
     const timestamp = Date.now();
+
     const newScreenshot: Screenshot = {
       id: `screenshot-${timestamp}-${Math.random().toString(36).slice(2, 9)}`,
       dataUrl,
@@ -326,7 +327,7 @@ const NiiViewer = () => {
       }
 
       if (event.data.type === "INIT_STATE") {
-        console.log("INIT_STATE", event.data.payload);
+        // console.log("init state", event.data.payload);
       }
     };
 
