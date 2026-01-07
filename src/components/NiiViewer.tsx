@@ -24,9 +24,9 @@ import {
 const colormaps = ["gray", "plasma", "viridis", "inferno"];
 
 const TARGET_ORIGINS = [
-  "http://localhost:1234",
-  "https://canary.dashboard.scale.com",
-  "https://dashboard.scale.com",
+  // "http://localhost:1234",
+  // "https://canary.dashboard.scale.com",
+  // "https://dashboard.scale.com",
   "https://www.remotasks.com",
   "https://canary.remotasks.com",
   "https://app.outlier.ai",
