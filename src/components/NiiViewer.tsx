@@ -23,6 +23,14 @@ import {
 
 const colormaps = ["gray", "plasma", "viridis", "inferno"];
 
+const TARGET_ORIGINS = [
+  "http://localhost:1234",
+  "https://canary.dashboard.scale.com",
+  "https://dashboard.scale.com",
+  "https://app.outlier.ai",
+  "https://www.remotasks.com",
+];
+
 const NiiViewer = () => {
   const [sourceUrl, setSourceUrl] = useState(
     "https://niivue.github.io/niivue-demo-images/mni152.nii.gz"
@@ -54,29 +62,29 @@ const NiiViewer = () => {
       return;
     }
 
-    window.parent.postMessage(
-      {
-        type: "submission",
-        payload: {
-          items: screenshots.map((screenshot) => ({
-            content: {
-              type: "dataUrl",
-              data: screenshot.dataUrl,
-            },
-            metadata: {
-              ...screenshot.metadata,
-              sliceType: getSliceTypeLabel(screenshot.metadata.sliceType),
-              dragMode: getDragModeLabel(screenshot.metadata.dragMode),
-              frac: Array.from(screenshot.metadata.frac),
-              vox: Array.from(screenshot.metadata.vox),
-            },
-          })),
+    for (const origin of TARGET_ORIGINS) {
+      window.parent.postMessage(
+        {
+          type: "submission",
+          payload: {
+            items: screenshots.map((screenshot) => ({
+              content: {
+                type: "dataUrl",
+                data: screenshot.dataUrl,
+              },
+              metadata: {
+                ...screenshot.metadata,
+                sliceType: getSliceTypeLabel(screenshot.metadata.sliceType),
+                dragMode: getDragModeLabel(screenshot.metadata.dragMode),
+                frac: Array.from(screenshot.metadata.frac),
+                vox: Array.from(screenshot.metadata.vox),
+              },
+            })),
+          },
         },
-      },
-      "http://localhost:1234"
-    );
-
-    console.log(`Submitted ${screenshots.length} screenshots`);
+        origin
+      );
+    }
   }, [screenshots]);
 
   const handleLocationChange = useCallback(
