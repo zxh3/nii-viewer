@@ -27,8 +27,9 @@ const TARGET_ORIGINS = [
   "http://localhost:1234",
   "https://canary.dashboard.scale.com",
   "https://dashboard.scale.com",
-  "https://app.outlier.ai",
   "https://www.remotasks.com",
+  "https://canary.remotasks.com",
+  "https://app.outlier.ai",
 ];
 
 const NiiViewer = () => {
@@ -62,7 +63,7 @@ const NiiViewer = () => {
       return;
     }
 
-    for (const origin of TARGET_ORIGINS) {
+    for (const targetOrigin of TARGET_ORIGINS) {
       window.parent.postMessage(
         {
           type: "submission",
@@ -82,7 +83,7 @@ const NiiViewer = () => {
             })),
           },
         },
-        origin
+        targetOrigin
       );
     }
   }, [screenshots]);
