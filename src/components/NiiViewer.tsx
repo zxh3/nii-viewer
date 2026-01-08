@@ -158,11 +158,21 @@ const NiiViewer = () => {
   const captureScreenshot = useCallback(() => {
     if (!nvRef.current || !canvasRef.current || !canScreenshot) return;
 
-    // Force render to ensure canvas is up-to-date
+    // Store original crosshair width
+    const originalCrosshairWidth = nvRef.current.opts.crosshairWidth;
+
+    // Hide crosshair for screenshot
+    nvRef.current.setCrosshairWidth(0);
+
+    // Force render to ensure canvas is up-to-date without crosshair
     nvRef.current.drawScene();
 
     // Capture canvas as base64 PNG
     const dataUrl = canvasRef.current.toDataURL("image/png");
+
+    // Restore original crosshair width
+    nvRef.current.setCrosshairWidth(originalCrosshairWidth);
+    nvRef.current.drawScene();
 
     const timestamp = Date.now();
 
